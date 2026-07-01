@@ -12,4 +12,6 @@ public enum Language: String, CaseIterable {
   case enUS = "en-us"
   /// GB English (British English).
   case enGB = "en-gb"
+  /// Modern Standard Arabic (uses the eSpeakNG G2P; input must be diacritized).
+  case ar = "ar"
 }

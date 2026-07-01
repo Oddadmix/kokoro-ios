@@ -35,7 +35,24 @@ final class eSpeakNGG2PProcessor : G2PProcessor {
   func process(input: String) throws -> (String, [MToken]?) {
     guard let eSpeakEngine else { throw G2PProcessorError.processorNotInitialized }
     let phonemizedText = try eSpeakEngine.phonemize(text: input)
-    return (phonemizedText, nil)
+    return (Self.cleanPhonemes(phonemizedText), nil)
+  }
+
+  /// Mirror of the training front-end's `clean_phonemes` (scripts/arabic_g2p.py).
+  /// espeak emits a syllable-boundary '.' mid-word which Kokoro's vocab maps to
+  /// the sentence-period token (id 4) → phantom pauses. Strip those (a '.' with a
+  /// non-whitespace neighbour on BOTH sides) while keeping sentence-final '.'.
+  /// The dental/pharyngealization marks and bracket markers aren't in the Kokoro
+  /// vocab, so `Tokenizer.tokenize` already drops them — we remove them here too
+  /// so the returned phoneme string shown to callers is clean. `ʕ`/`ħ` are KEPT
+  /// (they live on vocab slots 7/8).
+  static func cleanPhonemes(_ s: String) -> String {
+    var out = s.replacingOccurrences(
+      of: "(?<=\\S)\\.(?=\\S)", with: "", options: .regularExpression)
+    for marker in ["\u{032A}", "\u{02E4}", "[", "]", "{", "}"] {  // ̪  ˤ  [ ] { }
+      out = out.replacingOccurrences(of: marker, with: "")
+    }
+    return out
   }
 }
 
