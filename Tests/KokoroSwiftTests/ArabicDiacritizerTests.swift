@@ -1,0 +1,39 @@
+import Foundation
+import Testing
+@testable import KokoroSwift
+
+/// Verifies the CATT port against outputs produced by the reference PyTorch
+/// implementation (see kikiri-tts scripts/convert_catt_to_mlx.py, which
+/// asserts PyTorch ≡ MLX before writing the weights).
+///
+/// Requires the converted weights; skipped when the file is absent.
+@Suite struct ArabicDiacritizerTests {
+  static let weightsURL = URL(fileURLWithPath: NSString(
+    string: "~/Documents/projects/catt/catt_eo.safetensors").expandingTildeInPath)
+
+  /// (undiacritized input, expected diacritized output from PyTorch)
+  static let cases: [(String, String)] = [
+    ("مرحبا بك في نبرة", "مَرْحَبًا بِكَ فِي نَبْرَةَ"),
+    ("العربية لغة جميلة جدا", "الْعَرَبِيَّةُ لُغَةٌ جَمِيلَةٌ جِدًّا"),
+    ("خرج الرجل من البيت صباحا", "خَرَجَ الرَّجُلُ مِنْ الْبَيْتِ صَبَاحًا"),
+    ("قرأت كتابا عن الذكاء الاصطناعي", "قَرَأْتُ كِتَابًا عَنْ الذَّكَاءِ الِاصْطِنَاعِيِّ"),
+  ]
+
+  @Test func matchesPyTorchReference() throws {
+    guard FileManager.default.fileExists(atPath: Self.weightsURL.path) else {
+      print("catt_eo.safetensors not found — skipping")
+      return
+    }
+    let diacritizer = try ArabicDiacritizer(modelPath: Self.weightsURL)
+    for (input, expected) in Self.cases {
+      let output = diacritizer.diacritize(input)
+      #expect(output == expected, "input: \(input)")
+    }
+  }
+
+  @Test func detectsDiacritizedText() {
+    #expect(ArabicDiacritizer.isDiacritized("مَرْحَبًا بِكَ فِي نَبْرَة"))
+    #expect(!ArabicDiacritizer.isDiacritized("مرحبا بك في نبرة"))
+    #expect(!ArabicDiacritizer.isDiacritized("hello world"))
+  }
+}
