@@ -9,7 +9,7 @@ import MLXUtilsLibrary
 class TimestampPredictor {
   private init() {}
   
-  static func preditTimestamps(tokens: [MToken], predictionDuration: MLXArray) {
+  static func preditTimestamps(tokens: inout [MToken], predictionDuration: MLXArray) {
     /*
      Multiply by 600 to go from pred_dur frames to sample_rate 24000.
      Equivalent to dividing pred_dur frames by 40 to get timestamp in seconds.
