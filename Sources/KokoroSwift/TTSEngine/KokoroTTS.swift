@@ -217,8 +217,9 @@ public final class KokoroTTS {
     )[0]
     
     // Try to predict timestamp of each token if G2P processor returns tokens
-    if tokenArray != nil {
-      TimestampPredictor.preditTimestamps(tokens: &tokenArray, predictionDuration: predictedDurations)
+    if var tokens = tokenArray {
+      TimestampPredictor.preditTimestamps(tokens: &tokens, predictionDuration: predictedDurations)
+      tokenArray = tokens
     }
     
     // Stop performance timing
