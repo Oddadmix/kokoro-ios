@@ -63,7 +63,7 @@ public final class KokoroTTS {
   /// - Parameters:
   ///   - modelPath: URL to the directory containing model weights
   ///   - g2p: Grapheme-to-phoneme processor type (default: Misaki)
-  public init(modelPath: URL, g2p: G2P = .misaki) {
+  public init(modelPath: URL, g2p: G2P = .eSpeakNG) {
     // Load and sanitize model weights
     let sanitizedWeights = WeightLoader.loadWeights(modelPath: modelPath)
     let config = KokoroConfig.loadConfig()
