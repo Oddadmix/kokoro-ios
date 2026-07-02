@@ -4,14 +4,16 @@
 import Foundation
 import MLXUtilsLibrary
 
-/// Token metadata from phonemization (currently unused, reserved for future use)
+/// Token metadata from phonemization
 public struct MToken {
-  public let offset: Int
-  public let duration: Float
+  public var phonemes: [String]?
+  public var whitespace: String
+  public var start_ts: Double = 0.0
+  public var end_ts: Double = 0.0
 
-  public init(offset: Int, duration: Float) {
-    self.offset = offset
-    self.duration = duration
+  public init(phonemes: [String]? = nil, whitespace: String = "") {
+    self.phonemes = phonemes
+    self.whitespace = whitespace
   }
 }
 
