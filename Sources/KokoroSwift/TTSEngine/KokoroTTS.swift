@@ -174,7 +174,7 @@ public final class KokoroTTS {
     BenchmarkTimer.startTimer(Constants.bm_TTS)
 
     // Step 1: Convert text to phonemes
-    let (phonemizedText, tokenArray) = try phonemizeText(text)
+    var (phonemizedText, tokenArray) = try phonemizeText(text)
     
     // Step 2: Tokenize and prepare input
     let (paddedInputIds, attentionMask, inputLengths, textMask, inputIds) = try prepareInputTensors(phonemizedText)
