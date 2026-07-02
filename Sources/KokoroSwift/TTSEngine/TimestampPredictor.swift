@@ -33,11 +33,12 @@ class TimestampPredictor {
     // left = right + (2 * token_dur) + space_dur
     // right = left + space_dur
     var i = 1
-    for t in tokens {
+    for idx in tokens.indices {
+      var t = tokens[idx]
       guard i < predictionDuration.shape[0] - 1 else {
         break
       }
-     
+
       if t.phonemes == nil {
         if !t.whitespace.isEmpty {
           i += 1
@@ -47,7 +48,7 @@ class TimestampPredictor {
         }
         continue
       }
-      
+
       let j = i + t.phonemes!.count
       if j >= predictionDuration.shape[0] {
         break
@@ -60,6 +61,7 @@ class TimestampPredictor {
       t.end_ts = Double(left / magicDivisor)
       right = left + spaceDuration
       i = j + (t.whitespace.isEmpty ? 0 : 1)
+      tokens[idx] = t
     }
   }
 }
