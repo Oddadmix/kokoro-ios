@@ -4,6 +4,12 @@
 import Foundation
 import MLXUtilsLibrary
 
+/// Token metadata from phonemization (currently unused, reserved for future use)
+struct MToken {
+  let offset: Int
+  let duration: Float
+}
+
 /// Errors that can occur during G2P (grapheme-to-phoneme) processing.
 enum G2PProcessorError : Error {
   /// The processor has not been initialized with a language.
