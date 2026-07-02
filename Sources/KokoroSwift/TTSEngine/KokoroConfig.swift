@@ -153,8 +153,9 @@ struct KokoroConfig: Decodable {
   /// - Note: Uses forced unwrapping (try!) as configuration loading is critical
   ///         and should fail fast if the file is missing or malformed
   nonisolated static func loadConfig() -> KokoroConfig {
-    // Locate config.json in the module bundle
-    let fileURL = Bundle.module.url(forResource: "config", withExtension: "json", subdirectory: "Resources")!
+    // Locate config.json in the module bundle (copied to the bundle root;
+    // a top-level "Resources" directory is rejected by codesign on iOS)
+    let fileURL = Bundle.module.url(forResource: "config", withExtension: "json")!
     
     // Read file contents
     let configJSON = try! String(contentsOf: fileURL, encoding: .utf8)
