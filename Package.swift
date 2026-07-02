@@ -30,6 +30,9 @@ let package = Package(
         .product(name: "MLXFFT", package: "mlx-swift"),
         .product(name: "eSpeakNGLib", package: "eSpeakNGSwift"),
         .product(name: "MLXUtilsLibrary", package: "MLXUtilsLibrary")
+      ],
+      resources: [
+        .copy("Resources/config.json")
       ]
     ),
     .testTarget(
