@@ -5,9 +5,14 @@ import Foundation
 import MLXUtilsLibrary
 
 /// Token metadata from phonemization (currently unused, reserved for future use)
-struct MToken {
-  let offset: Int
-  let duration: Float
+public struct MToken {
+  public let offset: Int
+  public let duration: Float
+
+  public init(offset: Int, duration: Float) {
+    self.offset = offset
+    self.duration = duration
+  }
 }
 
 /// Errors that can occur during G2P (grapheme-to-phoneme) processing.
