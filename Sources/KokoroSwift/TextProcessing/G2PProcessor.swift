@@ -8,12 +8,14 @@ import MLXUtilsLibrary
 public struct MToken {
   public var phonemes: [String]?
   public var whitespace: String
+  public var text: String = ""
   public var start_ts: Double = 0.0
   public var end_ts: Double = 0.0
 
-  public init(phonemes: [String]? = nil, whitespace: String = "") {
+  public init(phonemes: [String]? = nil, whitespace: String = "", text: String = "") {
     self.phonemes = phonemes
     self.whitespace = whitespace
+    self.text = text
   }
 }
 
