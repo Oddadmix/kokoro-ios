@@ -17,17 +17,20 @@ public final class LFM2Agent {
   private let system: String
   private let maxRounds: Int
   private let maxTokensPerTurn: Int
+  private let fallback: String
 
   /// Notifies the UI that a tool is about to run (name, human-readable args).
   public var onToolUse: ((_ name: String, _ arguments: [String: String]) -> Void)?
 
-  public init(model: LFM2Model, tools: [AgentTool],
-              system: String, maxRounds: Int = 4, maxTokensPerTurn: Int = 256) {
+  public init(model: LFM2Model, tools: [AgentTool], system: String,
+              maxRounds: Int = 4, maxTokensPerTurn: Int = 256,
+              fallback: String = "Sorry, I couldn't find an answer.") {
     self.model = model
     self.tools = tools
     self.system = system
     self.maxRounds = maxRounds
     self.maxTokensPerTurn = maxTokensPerTurn
+    self.fallback = fallback
   }
 
   /// Runs the agentic loop for one user message and returns the final reply.
@@ -40,19 +43,16 @@ public final class LFM2Agent {
       turns: history + [LFM2Model.Turn(role: "user", content: userText)],
       addGenerationPrompt: true)
 
-    var lastText = ""
     for _ in 0..<maxRounds {
       let gen = model.generate(promptIds: ids, maxTokens: maxTokensPerTurn, stop: [tok.imEndId])
-      lastText = tok.decode(gen).trimmingCharacters(in: .whitespacesAndNewlines)
 
       guard let (start, end) = toolCallSpan(in: gen, tok: tok) else {
-        return lastText  // no tool call → final answer
+        return tok.decode(gen).trimmingCharacters(in: .whitespacesAndNewlines)  // final answer
       }
 
       // Parse the calls from the inner text (marker tokens excluded).
-      let inner = Array(gen[(start + 1)..<end])
-      let calls = ToolCallParser.parse(tok.decode(inner))
-      if calls.isEmpty { return lastText }
+      let calls = ToolCallParser.parse(tok.decode(Array(gen[(start + 1)..<end])))
+      if calls.isEmpty { break }  // markers but unparseable → force a clean answer
 
       // Close the assistant tool-call turn verbatim, then append tool results.
       ids += gen + [tok.imEndId] + tok.encode("\n")
@@ -63,8 +63,14 @@ public final class LFM2Agent {
       }
       ids += [tok.imStartId] + tok.encode("assistant\n")
     }
-    // Exhausted the tool-call budget; return whatever text we last produced.
-    return lastText
+
+    // Tool budget exhausted (the model kept calling tools). Force a text-only
+    // answer by stopping the moment it tries another call — so we NEVER return
+    // raw tool-call syntax to the user.
+    let finalGen = model.generate(promptIds: ids, maxTokens: maxTokensPerTurn,
+                                  stop: [tok.imEndId, tok.toolCallStartId])
+    let text = tok.decode(finalGen).trimmingCharacters(in: .whitespacesAndNewlines)
+    return text.isEmpty ? fallback : text
   }
 
   /// Finds the [start, end) token indices of the tool-call marker span, if any.

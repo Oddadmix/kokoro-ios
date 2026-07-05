@@ -55,4 +55,28 @@ import Testing
     print("AR REPLY: [\(reply)]")
     #expect(!reply.isEmpty)
   }
+
+  /// Reproduces the web-search path (Arabic factual question).
+  @Test func arabicWebSearchRoundTrip() async throws {
+    guard FileManager.default.fileExists(
+      atPath: Self.modelDir.appendingPathComponent("lfm2_230m_fp16.safetensors").path) else {
+      print("lfm2 model dir not found — skipping"); return
+    }
+    let model = try LFM2Model(
+      modelPath: Self.modelDir.appendingPathComponent("lfm2_230m_fp16.safetensors"),
+      tokenizerPath: Self.modelDir.appendingPathComponent("tokenizer.json"))
+    let system = "أنت مساعد صوتي ذكي لديك أدوات: get_weather لأسئلة الطقس، "
+      + "convert_currency لتحويل العملات، web_search للبحث عن الحقائق والمعلومات. "
+      + "استخدم الأداة المناسبة عند الحاجة. أجب دائماً باللغة العربية الفصحى فقط بإيجاز، "
+      + "حتى لو كانت نتائج الأدوات باللغة الإنجليزية."
+    let agent = LFM2Agent(model: model,
+                          tools: [WeatherTool(), CurrencyTool(), WebSearchTool()],
+                          system: system)
+    agent.onToolUse = { name, args in print("WS TOOL: \(name)(\(args))") }
+    for q in ["ما هي عاصمة اليابان؟", "من هو مؤسس شركة آبل؟"] {
+      let reply = await agent.respond(to: q)
+      print("WS Q: [\(q)] REPLY: [\(reply)]")
+      #expect(!reply.isEmpty)
+    }
+  }
 }

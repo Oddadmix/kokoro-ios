@@ -121,31 +121,53 @@ public struct WebSearchTool: AgentTool {
   public init() {}
   public let name = "web_search"
   public let schemaJSON = """
-  {"name": "web_search", "description": "Search the web for a topic and return \
-  a short summary.", "parameters": {"type": "object", "properties": {"query": \
-  {"type": "string", "description": "The search query"}}, "required": ["query"]}}
+  {"name": "web_search", "description": "Search the web for current events or \
+  facts you do not know. Use a concise keyword query (the entity name).", \
+  "parameters": {"type": "object", "properties": {"query": {"type": "string", \
+  "description": "A short keyword query, e.g. 'Apple founder'"}}, "required": ["query"]}}
   """
 
   public func run(arguments: [String: String]) async -> String {
     guard let query = arguments["query"], !query.isEmpty else {
       return "Error: missing query."
     }
+    // 1. DuckDuckGo Instant Answer (fast, but only answers entity queries).
+    if let ddg = await duckDuckGo(query) { return ddg }
+    // 2. Wikipedia summary fallback — real content for factual questions.
+    if let wiki = await wikipedia(query) { return wiki }
+    return "No results found for '\(query)'."
+  }
+
+  private func duckDuckGo(_ query: String) async -> String? {
     guard let json = await getJSON(
       "https://api.duckduckgo.com/?q=\(query)&format=json&no_html=1&skip_disambig=1") as? [String: Any]
-    else { return "Search failed for '\(query)'." }
-
+    else { return nil }
     if let abstract = json["AbstractText"] as? String, !abstract.isEmpty {
       let source = json["AbstractSource"] as? String
       return source.map { "\(abstract) (source: \($0))" } ?? abstract
     }
-    if let answer = json["Answer"] as? String, !answer.isEmpty {
-      return answer
-    }
-    // Fall back to the first few related-topic snippets.
+    if let answer = json["Answer"] as? String, !answer.isEmpty { return answer }
     if let related = json["RelatedTopics"] as? [[String: Any]] {
       let snippets = related.compactMap { $0["Text"] as? String }.prefix(3)
       if !snippets.isEmpty { return snippets.joined(separator: " | ") }
     }
-    return "No instant answer found for '\(query)'."
+    return nil
+  }
+
+  /// Resolves a title via Wikipedia OpenSearch, then returns its summary.
+  /// Uses the Arabic Wikipedia for Arabic queries, English otherwise.
+  private func wikipedia(_ query: String) async -> String? {
+    let lang = query.range(of: #"\p{Arabic}"#, options: .regularExpression) != nil ? "ar" : "en"
+    guard let os = await getJSON(
+      "https://\(lang).wikipedia.org/w/api.php?action=opensearch&limit=1&format=json&search=\(query)") as? [Any],
+      os.count >= 2, let titles = os[1] as? [String], let title = titles.first
+    else { return nil }
+
+    let slug = title.replacingOccurrences(of: " ", with: "_")
+    guard let sum = await getJSON(
+      "https://\(lang).wikipedia.org/api/rest_v1/page/summary/\(slug)") as? [String: Any],
+      let extract = sum["extract"] as? String, !extract.isEmpty
+    else { return nil }
+    return String(extract.prefix(400))
   }
 }
