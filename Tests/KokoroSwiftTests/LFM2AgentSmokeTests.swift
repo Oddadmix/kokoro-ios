@@ -33,4 +33,26 @@ import Testing
     #expect(!reply.isEmpty)
     #expect(used.contains("convert_currency"))
   }
+
+  /// Reproduces the app's exact path: Arabic system prompt + Arabic query.
+  @Test func arabicCurrencyRoundTrip() async throws {
+    guard FileManager.default.fileExists(
+      atPath: Self.modelDir.appendingPathComponent("lfm2_230m_fp16.safetensors").path) else {
+      print("lfm2 model dir not found — skipping"); return
+    }
+    let model = try LFM2Model(
+      modelPath: Self.modelDir.appendingPathComponent("lfm2_230m_fp16.safetensors"),
+      tokenizerPath: Self.modelDir.appendingPathComponent("tokenizer.json"))
+    let system = "أنت مساعد صوتي ذكي لديك أدوات: get_weather لأسئلة الطقس، "
+      + "convert_currency لتحويل العملات، web_search للبحث عن الحقائق والمعلومات. "
+      + "استخدم الأداة المناسبة عند الحاجة. أجب دائماً باللغة العربية الفصحى فقط بإيجاز، "
+      + "حتى لو كانت نتائج الأدوات باللغة الإنجليزية."
+    let agent = LFM2Agent(model: model,
+                          tools: [WeatherTool(), CurrencyTool(), WebSearchTool()],
+                          system: system)
+    agent.onToolUse = { name, args in print("TOOL: \(name)(\(args))") }
+    let reply = await agent.respond(to: "حول 100 دولار أمريكي إلى يورو")
+    print("AR REPLY: [\(reply)]")
+    #expect(!reply.isEmpty)
+  }
 }

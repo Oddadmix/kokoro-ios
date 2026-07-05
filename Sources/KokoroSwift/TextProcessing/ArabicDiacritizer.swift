@@ -120,10 +120,58 @@ public final class ArabicDiacritizer {
     return Float(harakat) / Float(letters) >= 0.2
   }
 
-  /// Restores diacritics on Arabic text. Non-Arabic characters are dropped
-  /// (matching the CATT tokenizer's cleanup). Returns the input unchanged if
-  /// nothing tokenizable remains.
+  /// Restores diacritics on Arabic text while preserving everything else.
+  /// The text is split into runs of Arabic letters vs. non-Arabic content
+  /// (digits, punctuation, Latin); only Arabic runs are diacritized, so
+  /// numbers and symbols — e.g. "٨٧٫٣٥", "87.35 EUR" — survive verbatim.
   public func diacritize(_ text: String) -> String {
+    var result = ""
+    var segment = ""
+    var segmentIsArabic: Bool? = nil
+
+    func flush() {
+      guard !segment.isEmpty else { return }
+      result += (segmentIsArabic == true) ? diacritizeRun(segment) : segment
+      segment = ""
+    }
+
+    for ch in text {
+      let isLetter = ch.unicodeScalars.allSatisfy { Self.isArabicLetter($0) }
+      let isSpace = ch == " " || ch == "\n" || ch == "\t"
+      if isSpace {
+        segment.append(ch)  // whitespace stays in the current run
+      } else if isLetter {
+        if segmentIsArabic == false { flush() }
+        segmentIsArabic = true
+        segment.append(ch)
+      } else {
+        if segmentIsArabic == true { flush() }
+        segmentIsArabic = false
+        segment.append(ch)
+      }
+    }
+    flush()
+    return result
+  }
+
+  /// True for Arabic letters/diacritics the CATT model handles (NOT digits).
+  private static func isArabicLetter(_ s: Unicode.Scalar) -> Bool {
+    switch s.value {
+    case 0x0621...0x063A, 0x0641...0x0652, 0x0670, 0x0671,
+         0xFEFB, 0xFEF7, 0xFEF5, 0xFEF9:
+      return true
+    default:
+      return false
+    }
+  }
+
+  /// Diacritizes a run that is known to be Arabic letters + spaces.
+  /// Leading/trailing whitespace is preserved (toBuckwalter trims it).
+  private func diacritizeRun(_ text: String) -> String {
+    let ws = { (c: Character) in c == " " || c == "\n" || c == "\t" }
+    let leading = String(text.prefix(while: ws))
+    let trailing = String(text.reversed().prefix(while: ws).reversed())
+
     let bwChars = Self.toBuckwalter(text)
     guard !bwChars.isEmpty else { return text }
 
@@ -153,7 +201,7 @@ public final class ArabicDiacritizer {
         bwOut += tag
       }
     }
-    return String(bwOut.map { Self.buck2uni[$0] ?? $0 })
+    return leading + String(bwOut.map { Self.buck2uni[$0] ?? $0 }) + trailing
   }
 
   // MARK: - Text preparation (mirrors clean_text + ar2bw)

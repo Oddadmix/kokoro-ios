@@ -36,4 +36,18 @@ import Testing
     #expect(!ArabicDiacritizer.isDiacritized("مرحبا بك في نبرة"))
     #expect(!ArabicDiacritizer.isDiacritized("hello world"))
   }
+
+  /// Numbers, symbols, and Latin must survive diacritization (agent replies
+  /// contain amounts/temperatures that are the actual answer).
+  @Test func preservesNumbersAndSymbols() throws {
+    guard FileManager.default.fileExists(atPath: Self.weightsURL.path) else {
+      print("catt_eo.safetensors not found — skipping"); return
+    }
+    let d = try ArabicDiacritizer(modelPath: Self.weightsURL)
+    let out = d.diacritize("مائة دولار أمريكي = 87.35 يورو")
+    #expect(out.contains("87.35"), "numbers dropped: \(out)")
+    #expect(out.contains("="), "symbols dropped: \(out)")
+    #expect(out.unicodeScalars.contains { (0x064B...0x0652).contains($0.value) },
+            "Arabic went undiacritized: \(out)")
+  }
 }
