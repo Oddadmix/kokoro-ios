@@ -31,14 +31,9 @@ public struct WeatherTool: AgentTool {
       return "Error: missing location."
     }
     // 1. Geocode the city name to coordinates.
-    guard let geo = await getJSON(
-      "https://geocoding-api.open-meteo.com/v1/search?name=\(location)&count=1&language=en") as? [String: Any],
-      let results = geo["results"] as? [[String: Any]], let first = results.first,
-      let lat = first["latitude"] as? Double, let lon = first["longitude"] as? Double
-    else { return "Could not find location '\(location)'." }
-
-    let place = [first["name"] as? String, first["country"] as? String]
-      .compactMap { $0 }.joined(separator: ", ")
+    guard let (lat, lon, place) = await geocode(location) else {
+      return "Could not find location '\(location)'."
+    }
 
     // 2. Fetch current conditions.
     guard let wx = await getJSON(
@@ -50,6 +45,29 @@ public struct WeatherTool: AgentTool {
     let code = (current["weather_code"] as? Int) ?? -1
     let wind = current["wind_speed_10m"] as? Double ?? 0
     return "Weather in \(place): \(temp)°C, \(Self.describe(code)), wind \(wind) km/h."
+  }
+
+  /// Geocodes a city name → (lat, lon, "City, Country"). Retries with the
+  /// Arabic definite article prepended, since the small model often drops it
+  /// (e.g. "قاهرة" → "القاهرة"), which Open-Meteo requires.
+  private func geocode(_ name: String) async -> (Double, Double, String)? {
+    if let hit = await lookup(name) { return hit }
+    let isArabic = name.range(of: #"\p{Arabic}"#, options: .regularExpression) != nil
+    if isArabic && !name.hasPrefix("ال") {
+      return await lookup("ال" + name)
+    }
+    return nil
+  }
+
+  private func lookup(_ name: String) async -> (Double, Double, String)? {
+    guard let geo = await getJSON(
+      "https://geocoding-api.open-meteo.com/v1/search?name=\(name)&count=1") as? [String: Any],
+      let results = geo["results"] as? [[String: Any]], let first = results.first,
+      let lat = first["latitude"] as? Double, let lon = first["longitude"] as? Double
+    else { return nil }
+    let place = [first["name"] as? String, first["country"] as? String]
+      .compactMap { $0 }.joined(separator: ", ")
+    return (lat, lon, place)
   }
 
   /// WMO weather-code → short description.
