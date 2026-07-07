@@ -77,12 +77,14 @@ public final class EmhotobAgent {
     var lastText = ""
     for _ in 0..<maxRounds {
       let ids = buildPrompt(system: toolSystem, turns: messages)
-      let gen = model.generate(promptIds: ids, maxTokens: maxTokensPerTurn)
+      let gen = model.generate(promptIds: ids, maxTokens: maxTokensPerTurn, repetitionPenalty: 1.3)
       lastText = model.tokenizer.decode(gen).trimmingCharacters(in: .whitespacesAndNewlines)
 
       let calls = Self.parseToolCalls(lastText)
       if calls.isEmpty {
-        return lastText  // model answered directly
+        // Plain answer, or an unparseable call — never show raw markup.
+        let clean = stripToolCalls(lastText)
+        return clean.isEmpty ? "عذراً، لم أتمكن من معالجة الطلب." : clean
       }
 
       // Feed the assistant's tool-call turn back verbatim, then the results.
@@ -101,7 +103,7 @@ public final class EmhotobAgent {
   private func plainChat(_ userText: String) -> String {
     let ids = buildPrompt(system: Self.defaultSystem,
                           turns: [Turn(role: "user", content: userText)])
-    let gen = model.generate(promptIds: ids, maxTokens: maxTokensPerTurn)
+    let gen = model.generate(promptIds: ids, maxTokens: maxTokensPerTurn, repetitionPenalty: 1.3)
     return model.tokenizer.decode(gen).trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
@@ -138,14 +140,30 @@ public final class EmhotobAgent {
       let innerStart = o.upperBound
       let innerEnd = text.range(of: close, range: innerStart..<text.endIndex)?.lowerBound ?? text.endIndex
       let inner = String(text[innerStart..<innerEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
-      if let data = inner.data(using: .utf8),
-         let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-         let name = obj["name"] as? String {
+      if let obj = parseJSONObject(inner), let name = obj["name"] as? String {
         calls.append(ParsedCall(name: name, arguments: obj["arguments"] as? [String: Any] ?? [:]))
       }
       search = innerEnd
     }
     return calls
+  }
+
+  /// Parses a JSON object, repairing the small model's occasional malformed
+  /// output (a number immediately followed by an Arabic/other word inside a
+  /// value, e.g. `"percentage": 15 المائة` → `"percentage": 15`).
+  private static func parseJSONObject(_ s: String) -> [String: Any]? {
+    if let data = s.data(using: .utf8),
+       let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+      return obj
+    }
+    let repaired = s.replacingOccurrences(
+      of: #":\s*(-?\d+(?:\.\d+)?)\s+[^\s,}\]]+"#,
+      with: ": $1", options: .regularExpression)
+    if repaired != s, let data = repaired.data(using: .utf8),
+       let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+      return obj
+    }
+    return nil
   }
 
   private func stripToolCalls(_ text: String) -> String {

@@ -77,6 +77,185 @@ public struct CalculateTipTool: EmhotobTool {
   }
 }
 
+// MARK: - convert_temperature
+
+public struct ConvertTemperatureTool: EmhotobTool {
+  public init() {}
+  public let name = "convert_temperature"
+  public let keywords = ["فهرنهايت", "مئوية", "كلفن", "celsius", "fahrenheit", "kelvin"]
+  public let schemaJSON = #"{"name": "convert_temperature", "description": "حوّل درجة الحرارة بين الوحدات (مئوية، فهرنهايت، كلفن).", "parameters": {"type": "object", "properties": {"value": {"type": "number", "description": "القيمة"}, "from_unit": {"type": "string", "description": "الوحدة المصدر"}, "to_unit": {"type": "string", "description": "الوحدة الهدف"}}, "required": ["value", "from_unit", "to_unit"]}}"#
+
+  private func unit(_ s: String) -> String {
+    let t = s.lowercased()
+    if t.contains("fahren") || t.contains("فهرن") || t == "f" { return "F" }
+    if t.contains("kelvin") || t.contains("كلفن") || t == "k" { return "K" }
+    return "C"
+  }
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let v = doubleArg(a["value"]) else { return ["error": "القيمة مطلوبة"] }
+    let from = unit((a["from_unit"] as? String) ?? "C"), to = unit((a["to_unit"] as? String) ?? "C")
+    let celsius = from == "F" ? (v - 32) * 5 / 9 : from == "K" ? v - 273.15 : v
+    let out = to == "F" ? celsius * 9 / 5 + 32 : to == "K" ? celsius + 273.15 : celsius
+    return ["value": round2(out), "unit": to]
+  }
+}
+
+// MARK: - calculate_percentage
+
+public struct CalculatePercentageTool: EmhotobTool {
+  public init() {}
+  public let name = "calculate_percentage"
+  public let keywords = ["بالمئة", "بالمائة", "في المئة", "نسبة مئوية", "النسبة المئوية", "percentage"]
+  public let schemaJSON = #"{"name": "calculate_percentage", "description": "احسب نسبة مئوية من رقم.", "parameters": {"type": "object", "properties": {"percentage": {"type": "number", "description": "النسبة المئوية"}, "number": {"type": "number", "description": "الرقم"}}, "required": ["percentage", "number"]}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let p = doubleArg(a["percentage"]), let n = doubleArg(a["number"]) else {
+      return ["error": "النسبة والرقم مطلوبان"]
+    }
+    return ["result": round2(n * p / 100)]
+  }
+}
+
+// MARK: - calculate_discount
+
+public struct CalculateDiscountTool: EmhotobTool {
+  public init() {}
+  public let name = "calculate_discount"
+  public let keywords = ["خصم", "الخصم", "تخفيض", "discount"]
+  public let schemaJSON = #"{"name": "calculate_discount", "description": "احسب السعر النهائي بعد الخصم.", "parameters": {"type": "object", "properties": {"original_price": {"type": "number", "description": "السعر الأصلي"}, "discount_percentage": {"type": "number", "description": "نسبة الخصم"}}, "required": ["original_price", "discount_percentage"]}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let price = doubleArg(a["original_price"]), let pct = doubleArg(a["discount_percentage"]) else {
+      return ["error": "السعر ونسبة الخصم مطلوبان"]
+    }
+    let saved = round2(price * pct / 100)
+    return ["discount_amount": saved, "final_price": round2(price - saved)]
+  }
+}
+
+// MARK: - calculate_age
+
+public struct CalculateAgeTool: EmhotobTool {
+  public init() {}
+  public let name = "calculate_age"
+  public let keywords = ["عمري", "كم عمري", "احسب العمر", "مواليد", "سنة ميلادي", "age"]
+  public let schemaJSON = #"{"name": "calculate_age", "description": "احسب العمر من سنة الميلاد.", "parameters": {"type": "object", "properties": {"birth_year": {"type": "integer", "description": "سنة الميلاد"}}, "required": ["birth_year"]}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let year = intArg(a["birth_year"]) else { return ["error": "سنة الميلاد مطلوبة"] }
+    let now = Calendar(identifier: .gregorian).component(.year, from: Date())
+    return ["age": max(0, now - year)]
+  }
+}
+
+// MARK: - random_number
+
+public struct RandomNumberTool: EmhotobTool {
+  public init() {}
+  public let name = "random_number"
+  public let keywords = ["رقم عشوائي", "عدد عشوائي", "اختر رقم", "random"]
+  public let schemaJSON = #"{"name": "random_number", "description": "اختر رقمًا عشوائيًا ضمن نطاق.", "parameters": {"type": "object", "properties": {"min": {"type": "integer", "description": "أصغر قيمة"}, "max": {"type": "integer", "description": "أكبر قيمة"}}, "required": ["min", "max"]}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    let lo = intArg(a["min"]) ?? 1, hi = intArg(a["max"]) ?? 100
+    return ["result": Int.random(in: min(lo, hi)...max(lo, hi))]
+  }
+}
+
+// MARK: - calculate_zakat
+
+public struct CalculateZakatTool: EmhotobTool {
+  public init() {}
+  public let name = "calculate_zakat"
+  public let keywords = ["زكاة", "الزكاة", "zakat"]
+  public let schemaJSON = #"{"name": "calculate_zakat", "description": "احسب مقدار الزكاة على مبلغ من المال (2.5%).", "parameters": {"type": "object", "properties": {"amount": {"type": "number", "description": "المبلغ"}}, "required": ["amount"]}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let amount = doubleArg(a["amount"]) else { return ["error": "المبلغ مطلوب"] }
+    return ["amount": amount, "zakat": round2(amount * 0.025)]
+  }
+}
+
+// MARK: - calculate_vat
+
+public struct CalculateVATTool: EmhotobTool {
+  public init() {}
+  public let name = "calculate_vat"
+  public let keywords = ["ضريبة", "القيمة المضافة", "vat", "الضريبة"]
+  public let schemaJSON = #"{"name": "calculate_vat", "description": "احسب القيمة المضافة والمبلغ الإجمالي.", "parameters": {"type": "object", "properties": {"amount": {"type": "number", "description": "المبلغ قبل الضريبة"}, "tax_percentage": {"type": "number", "description": "نسبة الضريبة"}}, "required": ["amount", "tax_percentage"]}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let amount = doubleArg(a["amount"]) else { return ["error": "المبلغ مطلوب"] }
+    let pct = doubleArg(a["tax_percentage"]) ?? 15
+    let vat = round2(amount * pct / 100)
+    return ["vat": vat, "total": round2(amount + vat)]
+  }
+}
+
+// MARK: - days_until
+
+public struct DaysUntilTool: EmhotobTool {
+  public init() {}
+  public let name = "days_until"
+  public let keywords = ["كم يوم", "كم يومًا", "كم باقي", "متبقي", "days until"]
+  public let schemaJSON = #"{"name": "days_until", "description": "احسب عدد الأيام المتبقية حتى تاريخ معين (YYYY-MM-DD).", "parameters": {"type": "object", "properties": {"target_date": {"type": "string", "description": "التاريخ الهدف بصيغة YYYY-MM-DD"}}, "required": ["target_date"]}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let str = a["target_date"] as? String else { return ["error": "التاريخ مطلوب"] }
+    let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"; df.timeZone = TimeZone(identifier: "UTC")
+    guard let target = df.date(from: str) else { return ["error": "صيغة التاريخ يجب أن تكون YYYY-MM-DD"] }
+    let cal = Calendar(identifier: .gregorian)
+    let days = cal.dateComponents([.day], from: cal.startOfDay(for: Date()), to: target).day ?? 0
+    return ["target_date": str, "days_remaining": days]
+  }
+}
+
+// MARK: - get_prayer_times (live via Aladhan)
+
+public struct PrayerTimesTool: EmhotobTool {
+  public init() {}
+  public let name = "get_prayer_times"
+  public let keywords = ["مواقيت الصلاة", "مواعيد الصلاة", "الصلاة", "أذان", "اذان", "prayer"]
+  public let schemaJSON = #"{"name": "get_prayer_times", "description": "احصل على مواقيت الصلاة في مدينة.", "parameters": {"type": "object", "properties": {"city": {"type": "string", "description": "المدينة"}}, "required": ["city"]}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let city = (a["city"] as? String)?.trimmingCharacters(in: .whitespaces), !city.isEmpty else {
+      return ["error": "المدينة مطلوبة"]
+    }
+    let enc = city.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? city
+    guard let url = URL(string: "https://api.aladhan.com/v1/timingsByAddress?address=\(enc)&method=5"),
+          let (data, _) = try? await URLSession.shared.data(from: url),
+          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let d = json["data"] as? [String: Any], let t = d["timings"] as? [String: Any]
+    else { return ["error": "تعذر جلب مواقيت الصلاة لـ \(city)"] }
+    return ["city": city,
+            "الفجر": t["Fajr"] ?? "", "الظهر": t["Dhuhr"] ?? "", "العصر": t["Asr"] ?? "",
+            "المغرب": t["Maghrib"] ?? "", "العشاء": t["Isha"] ?? ""]
+  }
+}
+
+// MARK: - convert_to_hijri (live via Aladhan)
+
+public struct HijriDateTool: EmhotobTool {
+  public init() {}
+  public let name = "convert_to_hijri"
+  public let keywords = ["التاريخ الهجري", "هجري", "التقويم الهجري", "hijri"]
+  public let schemaJSON = #"{"name": "convert_to_hijri", "description": "حوّل تاريخًا ميلاديًا إلى التقويم الهجري (يُستخدم تاريخ اليوم إن لم يُحدَّد).", "parameters": {"type": "object", "properties": {"gregorian_date": {"type": "string", "description": "التاريخ الميلادي بصيغة DD-MM-YYYY"}}, "required": []}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    let df = DateFormatter(); df.dateFormat = "dd-MM-yyyy"; df.timeZone = TimeZone(identifier: "UTC")
+    let date = (a["gregorian_date"] as? String) ?? df.string(from: Date())
+    guard let url = URL(string: "https://api.aladhan.com/v1/gToH/\(date)"),
+          let (data, _) = try? await URLSession.shared.data(from: url),
+          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let d = json["data"] as? [String: Any], let h = d["hijri"] as? [String: Any]
+    else { return ["error": "تعذر تحويل التاريخ"] }
+    let month = (h["month"] as? [String: Any])?["ar"] as? String ?? ""
+    return ["gregorian": date,
+            "hijri": "\(h["day"] ?? "") \(month) \(h["year"] ?? "")هـ"]
+  }
+}
+
 // MARK: - get_weather (live via Open-Meteo)
 
 public struct EmhotobWeatherTool: EmhotobTool {

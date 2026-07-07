@@ -67,17 +67,36 @@ public final class NawahLLM {
 
   private typealias KVCache = [(k: MLXArray, v: MLXArray)]
 
-  func generate(promptIds: [Int], maxTokens: Int) -> [Int] {
+  /// Greedy generation. With `repetitionPenalty` > 1 (default 1 = off, which
+  /// preserves the verified greedy path) the logits of already-generated tokens
+  /// are down-weighted, and a repeating 6-gram cycle terminates generation —
+  /// both curb the small model's tendency to loop.
+  func generate(promptIds: [Int], maxTokens: Int, repetitionPenalty: Float = 1.0) -> [Int] {
     guard promptIds.count < Config.maxContext - maxTokens else { return [] }
 
     var (logits, cache) = forward(tokenIds: promptIds, cache: nil)
     var output: [Int] = []
+    var seen = Set<Int>()
     for _ in 0..<maxTokens {
-      let next = Int(MLX.argMax(logits).item(Int32.self))
-      if next == NawahTokenizer.imEndId {
+      let next: Int
+      if repetitionPenalty > 1.0, !seen.isEmpty {
+        var scores = logits.asArray(Float.self)
+        for t in seen { scores[t] = scores[t] > 0 ? scores[t] / repetitionPenalty : scores[t] * repetitionPenalty }
+        var best = 0
+        for i in 1..<scores.count where scores[i] > scores[best] { best = i }
+        next = best
+      } else {
+        next = Int(MLX.argMax(logits).item(Int32.self))
+      }
+      if next == NawahTokenizer.imEndId { break }
+      output.append(next)
+      seen.insert(next)
+      // Stop if the tail repeats a 6-gram cycle (a runaway loop).
+      if output.count >= 12,
+         Array(output.suffix(6)) == Array(output[(output.count - 12)..<(output.count - 6)]) {
+        output.removeLast(6)
         break
       }
-      output.append(next)
       (logits, cache) = forward(tokenIds: [next], cache: cache)
     }
     return output
