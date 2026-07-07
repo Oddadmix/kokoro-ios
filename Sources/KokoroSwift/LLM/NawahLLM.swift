@@ -33,7 +33,7 @@ public final class NawahLLM {
     "أنت مساعد ذكي يجيب باللغة العربية الفصحى بدقة ووضوح."
 
   private let weights: [String: MLXArray]
-  private let tokenizer: NawahTokenizer
+  let tokenizer: NawahTokenizer
 
   public init(modelPath: URL, tokenizerPath: URL) throws {
     weights = try MLX.loadArrays(url: modelPath)

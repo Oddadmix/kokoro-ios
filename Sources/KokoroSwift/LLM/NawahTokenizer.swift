@@ -15,6 +15,7 @@ final class NawahTokenizer {
     case malformedTokenizerJSON
   }
 
+  static let bosId = 0          // <s>
   static let imStartId = 32000  // <|im_start|>
   static let imEndId = 32001    // <|im_end|> (also EOS)
 
