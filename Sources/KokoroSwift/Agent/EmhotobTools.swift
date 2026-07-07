@@ -77,6 +77,69 @@ public struct CalculateTipTool: EmhotobTool {
   }
 }
 
+// MARK: - get_weather (live via Open-Meteo)
+
+public struct EmhotobWeatherTool: EmhotobTool {
+  public init() {}
+  public let name = "get_weather"
+  public let keywords = ["الطقس", "طقس", "الجو", "الحرارة", "درجة الحرارة", "weather", "أمطار", "مطر"]
+  public let schemaJSON = #"{"name": "get_weather", "description": "احصل على حالة الطقس الحالية في موقع معين.", "parameters": {"type": "object", "properties": {"location": {"type": "string", "description": "المدينة، مثال: القاهرة"}, "unit": {"type": "string", "enum": ["celsius", "fahrenheit"], "description": "وحدة قياس درجة الحرارة"}}, "required": ["location"]}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let location = (a["location"] as? String)?.trimmingCharacters(in: .whitespaces),
+          !location.isEmpty else { return ["error": "الموقع مطلوب"] }
+    guard let (lat, lon, place) = await geocode(location) else {
+      return ["error": "تعذر إيجاد الموقع '\(location)'"]
+    }
+    let urlStr = "https://api.open-meteo.com/v1/forecast?latitude=\(lat)&longitude=\(lon)&current=temperature_2m,weather_code"
+    if let url = URL(string: urlStr),
+       let (data, _) = try? await URLSession.shared.data(from: url),
+       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+       let current = json["current"] as? [String: Any],
+       let temp = doubleArg(current["temperature_2m"]) {
+      let code = intArg(current["weather_code"]) ?? -1
+      return ["location": place, "temperature": temp, "unit": "celsius",
+              "condition": Self.describe(code)]
+    }
+    return ["error": "تعذر جلب الطقس لـ \(place)"]
+  }
+
+  /// Geocode with an Arabic definite-article retry ("قاهرة" → "القاهرة").
+  private func geocode(_ name: String) async -> (Double, Double, String)? {
+    if let hit = await lookup(name) { return hit }
+    if name.range(of: #"\p{Arabic}"#, options: .regularExpression) != nil, !name.hasPrefix("ال") {
+      return await lookup("ال" + name)
+    }
+    return nil
+  }
+
+  private func lookup(_ name: String) async -> (Double, Double, String)? {
+    let enc = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+    guard let url = URL(string: "https://geocoding-api.open-meteo.com/v1/search?name=\(enc)&count=1"),
+          let (data, _) = try? await URLSession.shared.data(from: url),
+          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let results = json["results"] as? [[String: Any]], let first = results.first,
+          let lat = doubleArg(first["latitude"]), let lon = doubleArg(first["longitude"])
+    else { return nil }
+    let place = (first["name"] as? String) ?? name
+    return (lat, lon, place)
+  }
+
+  /// WMO weather-code → short Arabic description.
+  static func describe(_ code: Int) -> String {
+    switch code {
+    case 0: return "صافٍ"
+    case 1, 2, 3: return "غائم جزئيًا"
+    case 45, 48: return "ضبابي"
+    case 51, 53, 55, 56, 57: return "رذاذ"
+    case 61, 63, 65, 66, 67, 80, 81, 82: return "ممطر"
+    case 71, 73, 75, 77, 85, 86: return "ثلوج"
+    case 95, 96, 99: return "عاصفة رعدية"
+    default: return "غير معروف"
+    }
+  }
+}
+
 // MARK: - get_exchange_rate (live via Frankfurter)
 
 public struct ExchangeRateTool: EmhotobTool {
