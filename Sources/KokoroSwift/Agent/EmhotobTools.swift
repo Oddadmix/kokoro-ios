@@ -353,3 +353,156 @@ public struct ExchangeRateTool: EmhotobTool {
     return ["error": "تعذر جلب سعر الصرف بين \(base) و\(target)"]
   }
 }
+
+// MARK: - split_bill
+
+public struct SplitBillTool: EmhotobTool {
+  public init() {}
+  public let name = "split_bill"
+  public let keywords = ["قسّم الفاتورة", "قسم الفاتورة", "نقسم", "التقسيم", "قسّم المبلغ", "split"]
+  public let schemaJSON = #"{"name": "split_bill", "description": "قسّم الفاتورة بالتساوي على عدد من الأشخاص.", "parameters": {"type": "object", "properties": {"total_amount": {"type": "number", "description": "إجمالي الفاتورة"}, "number_of_people": {"type": "integer", "description": "عدد الأشخاص"}}, "required": ["total_amount", "number_of_people"]}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let total = doubleArg(a["total_amount"]), let people = intArg(a["number_of_people"]), people > 0 else {
+      return ["error": "المبلغ وعدد الأشخاص مطلوبان"]
+    }
+    return ["per_person": round2(total / Double(people)), "people": people]
+  }
+}
+
+// MARK: - convert_length
+
+public struct ConvertLengthTool: EmhotobTool {
+  public init() {}
+  public let name = "convert_length"
+  public let keywords = ["كيلومتر", "كيلو متر", "سنتيمتر", "سم إلى", "متر إلى", "ميل", "قدم", "الأطوال", "تحويل الطول"]
+  public let schemaJSON = #"{"name": "convert_length", "description": "حوّل بين وحدات الطول (متر، كيلومتر، سنتيمتر، ميل، قدم).", "parameters": {"type": "object", "properties": {"value": {"type": "number", "description": "القيمة"}, "from_unit": {"type": "string", "description": "الوحدة المصدر"}, "to_unit": {"type": "string", "description": "الوحدة الهدف"}}, "required": ["value", "from_unit", "to_unit"]}}"#
+
+  // metres per unit — check longer/compound units before "متر"/"meter".
+  private static let toM: [(keys: [String], m: Double)] = [
+    (["كيلومتر", "كيلو متر", "kilometer", "kilometre", "km"], 1000),
+    (["سنتيمتر", "centimeter", "centimetre", "cm"], 0.01),
+    (["مليمتر", "ملم", "millimeter", "mm"], 0.001),
+    (["ميل", "mile"], 1609.34),
+    (["قدم", "foot", "feet", "ft"], 0.3048),
+    (["بوصة", "انش", "inch"], 0.0254),
+    (["متر", "meter", "metre", "m"], 1),
+  ]
+  private func metres(_ s: String) -> Double {
+    let t = s.lowercased()
+    for u in Self.toM where u.keys.contains(where: { t.contains($0) }) { return u.m }
+    return 1
+  }
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let v = doubleArg(a["value"]) else { return ["error": "القيمة مطلوبة"] }
+    let m = v * metres((a["from_unit"] as? String) ?? "m")
+    return ["value": round2(m / metres((a["to_unit"] as? String) ?? "m")), "unit": (a["to_unit"] as? String) ?? ""]
+  }
+}
+
+// MARK: - convert_weight
+
+public struct ConvertWeightTool: EmhotobTool {
+  public init() {}
+  public let name = "convert_weight"
+  public let keywords = ["جرام", "غرام", "رطل", "باوند", "أونصة", "طن", "الأوزان", "تحويل الوزن"]
+  public let schemaJSON = #"{"name": "convert_weight", "description": "حوّل بين وحدات الوزن (كيلوغرام، جرام، رطل، أونصة).", "parameters": {"type": "object", "properties": {"value": {"type": "number", "description": "القيمة"}, "from_unit": {"type": "string", "description": "الوحدة المصدر"}, "to_unit": {"type": "string", "description": "الوحدة الهدف"}}, "required": ["value", "from_unit", "to_unit"]}}"#
+
+  private static let toKg: [(keys: [String], kg: Double)] = [
+    (["كيلوغرام", "كيلوجرام", "كجم", "كيلو", "kilogram", "kg"], 1),
+    (["ميليغرام", "ملغم", "milligram", "mg"], 1e-6),
+    (["غرام", "جرام", "gram", "g"], 0.001),
+    (["رطل", "باوند", "pound", "lb"], 0.453592),
+    (["أونصة", "اونصة", "ounce", "oz"], 0.0283495),
+    (["طن", "tonne", "ton"], 1000),
+  ]
+  private func kg(_ s: String) -> Double {
+    let t = s.lowercased()
+    for u in Self.toKg where u.keys.contains(where: { t.contains($0) }) { return u.kg }
+    return 1
+  }
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let v = doubleArg(a["value"]) else { return ["error": "القيمة مطلوبة"] }
+    let k = v * kg((a["from_unit"] as? String) ?? "kg")
+    return ["value": round2(k / kg((a["to_unit"] as? String) ?? "kg")), "unit": (a["to_unit"] as? String) ?? ""]
+  }
+}
+
+// MARK: - calculate_simple_interest
+
+public struct SimpleInterestTool: EmhotobTool {
+  public init() {}
+  public let name = "calculate_simple_interest"
+  public let keywords = ["فائدة", "الفائدة", "فوائد", "interest"]
+  public let schemaJSON = #"{"name": "calculate_simple_interest", "description": "احسب الفائدة البسيطة على مبلغ.", "parameters": {"type": "object", "properties": {"principal": {"type": "number", "description": "المبلغ الأصلي"}, "rate": {"type": "number", "description": "نسبة الفائدة السنوية"}, "years": {"type": "number", "description": "عدد السنوات"}}, "required": ["principal", "rate", "years"]}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let p = doubleArg(a["principal"]), let r = doubleArg(a["rate"]), let y = doubleArg(a["years"]) else {
+      return ["error": "المبلغ والنسبة والمدة مطلوبة"]
+    }
+    let interest = round2(p * r * y / 100)
+    return ["interest": interest, "total": round2(p + interest)]
+  }
+}
+
+// MARK: - count_words
+
+public struct CountWordsTool: EmhotobTool {
+  public init() {}
+  public let name = "count_words"
+  public let keywords = ["عدد الكلمات", "كم كلمة", "احسب الكلمات", "word count"]
+  public let schemaJSON = #"{"name": "count_words", "description": "احسب عدد الكلمات في نص.", "parameters": {"type": "object", "properties": {"text": {"type": "string", "description": "النص"}}, "required": ["text"]}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    let text = (a["text"] as? String) ?? ""
+    let words = text.split(whereSeparator: { $0.isWhitespace }).count
+    return ["word_count": words]
+  }
+}
+
+// MARK: - day_of_week
+
+public struct DayOfWeekTool: EmhotobTool {
+  public init() {}
+  public let name = "day_of_week"
+  public let keywords = ["أي يوم", "يوم الأسبوع", "اليوم يصادف", "day of week"]
+  public let schemaJSON = #"{"name": "day_of_week", "description": "احصل على اسم يوم الأسبوع لتاريخ معين (YYYY-MM-DD).", "parameters": {"type": "object", "properties": {"date": {"type": "string", "description": "التاريخ بصيغة YYYY-MM-DD"}}, "required": ["date"]}}"#
+
+  private static let days = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let str = a["date"] as? String else { return ["error": "التاريخ مطلوب"] }
+    let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"; df.timeZone = TimeZone(identifier: "UTC")
+    guard let date = df.date(from: str) else { return ["error": "صيغة التاريخ يجب أن تكون YYYY-MM-DD"] }
+    var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "UTC")!
+    return ["date": str, "day": Self.days[cal.component(.weekday, from: date) - 1]]
+  }
+}
+
+// MARK: - flip_coin
+
+public struct FlipCoinTool: EmhotobTool {
+  public init() {}
+  public let name = "flip_coin"
+  public let keywords = ["اقلب عملة", "اقلب العملة", "صورة أم كتابة", "رمي العملة", "flip coin"]
+  public let schemaJSON = #"{"name": "flip_coin", "description": "اقلب عملة معدنية.", "parameters": {"type": "object", "properties": {}, "required": []}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    return ["result": Bool.random() ? "صورة" : "كتابة"]
+  }
+}
+
+// MARK: - calculate_speed
+
+public struct CalculateSpeedTool: EmhotobTool {
+  public init() {}
+  public let name = "calculate_speed"
+  public let keywords = ["السرعة", "احسب السرعة", "speed"]
+  public let schemaJSON = #"{"name": "calculate_speed", "description": "احسب السرعة من المسافة والزمن.", "parameters": {"type": "object", "properties": {"distance": {"type": "number", "description": "المسافة"}, "time": {"type": "number", "description": "الزمن"}}, "required": ["distance", "time"]}}"#
+
+  public func run(_ a: [String: Any]) async -> [String: Any] {
+    guard let d = doubleArg(a["distance"]), let t = doubleArg(a["time"]), t > 0 else {
+      return ["error": "المسافة والزمن مطلوبان"]
+    }
+    return ["speed": round2(d / t)]
+  }
+}

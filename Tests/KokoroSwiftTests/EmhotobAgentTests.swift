@@ -70,4 +70,32 @@ import Testing
     #expect(used.contains("convert_temperature"))
     #expect(used.contains("calculate_zakat"))
   }
+
+  @Test func moreToolsRoundTrip() async throws {
+    let weights = Self.dir.appendingPathComponent("nawah_50m_fp16.safetensors")
+    guard FileManager.default.fileExists(atPath: weights.path) else {
+      print("emhotob model dir not found — skipping"); return
+    }
+    let model = try NawahLLM(
+      modelPath: weights,
+      tokenizerPath: Self.dir.appendingPathComponent("tokenizer.json"))
+    let agent = EmhotobAgent(model: model, tools: [
+      SplitBillTool(), ConvertLengthTool(), ConvertWeightTool(), SimpleInterestTool(),
+      CountWordsTool(), DayOfWeekTool(), CalculateSpeedTool(), FlipCoinTool(),
+      CalculateTipTool(),
+    ])
+    var used: [String] = []
+    agent.onToolUse = { name, args in used.append(name); print("TOOL: \(name)(\(args))") }
+
+    for q in ["قسّم الفاتورة 300 على 4 أشخاص",
+              "حوّل 5 كيلومتر إلى متر",
+              "اقلب عملة"] {
+      let reply = await agent.respond(to: q)
+      print("Q: [\(q)]\n → [\(reply)]")
+      #expect(!reply.isEmpty)
+      #expect(!reply.contains("<tool_call>"))
+    }
+    #expect(used.contains("split_bill"))
+    #expect(used.contains("convert_length"))
+  }
 }
