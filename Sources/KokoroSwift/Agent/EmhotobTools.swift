@@ -23,6 +23,63 @@ private func doubleArg(_ v: Any?) -> Double? {
 }
 private func round2(_ x: Double) -> Double { (x * 100).rounded() / 100 }
 
+// MARK: - Deterministic result formatting
+
+/// Renders a numeric result value without a trailing ".0".
+private func emhotobNum(_ v: Any?) -> String {
+  if let i = v as? Int { return String(i) }
+  if let n = v as? NSNumber { let d = n.doubleValue; return d == d.rounded() ? String(Int(d)) : String(d) }
+  if let d = v as? Double { return d == d.rounded() ? String(Int(d)) : String(d) }
+  if let s = v as? String { return s }
+  return ""
+}
+
+private func tempUnitAr(_ v: Any?) -> String {
+  switch v as? String {
+  case "F": return "فهرنهايت"
+  case "K": return "كلفن"
+  default: return "درجة مئوية"
+  }
+}
+
+/// Turns a tool's structured result into a ready-to-speak Arabic sentence.
+///
+/// The tools compute exact numbers; letting the 50M model re-compose the reply
+/// from a `<tool_response>` risks it mangling those numbers (e.g. reporting a
+/// C→F conversion 20° off). The agent speaks this deterministic string instead,
+/// so the answer always carries the tool's true output. Returns nil to fall
+/// back to a model-composed reply.
+func emhotobFormatResult(_ name: String, _ r: [String: Any]) -> String? {
+  func n(_ k: String) -> String { emhotobNum(r[k]) }
+  func s(_ k: String) -> String { (r[k] as? String) ?? "" }
+  switch name {
+  case "convert_temperature":       return "الناتج \(n("value")) \(tempUnitAr(r["unit"]))."
+  case "convert_length", "convert_weight": return "الناتج \(n("value")) \(s("unit"))."
+  case "calculate_tip":             return "قيمة البقشيش \(n("tip_amount"))، والإجمالي \(n("total"))."
+  case "split_bill":                return "نصيب كل شخص \(n("per_person")) لعدد \(n("people")) أشخاص."
+  case "calculate_discount":        return "قيمة الخصم \(n("discount_amount"))، والسعر بعد الخصم \(n("final_price"))."
+  case "calculate_vat":             return "قيمة الضريبة \(n("vat"))، والإجمالي مع الضريبة \(n("total"))."
+  case "calculate_percentage":      return "الناتج \(n("result"))."
+  case "calculate_simple_interest": return "الفائدة \(n("interest"))، والإجمالي \(n("total"))."
+  case "calculate_zakat":           return "الزكاة المستحقة \(n("zakat"))."
+  case "calculate_bmi":             return "مؤشر كتلة الجسم \(n("bmi"))، والتصنيف \(s("category"))."
+  case "calculate_age":             return "عمرك \(n("age")) سنة."
+  case "calculate_speed":           return "السرعة \(n("speed")) كيلومتر في الساعة."
+  case "count_words":               return "عدد الكلمات \(n("word_count"))."
+  case "random_number":             return "الرقم العشوائي هو \(n("result"))."
+  case "flip_coin":                 return "النتيجة: \(s("result"))."
+  case "generate_password":         return "كلمة المرور المقترحة: \(s("password"))."
+  case "days_until":                return "يتبقّى \(n("days_remaining")) يومًا حتى \(s("target_date"))."
+  case "day_of_week":               return "\(s("date")) يوافق يوم \(s("day"))."
+  case "convert_to_hijri":          return "التاريخ الهجري: \(s("hijri"))."
+  case "get_weather":               return "الطقس في \(s("location")): \(n("temperature")) درجة مئوية، \(s("condition"))."
+  case "get_exchange_rate":         return "كل \(s("base_currency")) يساوي \(n("exchange_rate")) \(s("target_currency"))."
+  case "get_prayer_times":
+    return "مواقيت الصلاة في \(s("city")): الفجر \(s("الفجر"))، الظهر \(s("الظهر"))، العصر \(s("العصر"))، المغرب \(s("المغرب"))، العشاء \(s("العشاء"))."
+  default:                          return nil
+  }
+}
+
 // MARK: - generate_password
 
 public struct GeneratePasswordTool: EmhotobTool {

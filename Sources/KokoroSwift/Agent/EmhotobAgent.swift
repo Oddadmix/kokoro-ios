@@ -92,6 +92,10 @@ public final class EmhotobAgent {
       for call in calls where call.name == tool.name {
         onToolUse?(call.name, call.arguments)
         let result = await tool.run(call.arguments)
+        if let error = result["error"] as? String { return error }
+        // Speak the tool's exact output deterministically — the 50M model can
+        // mangle numbers when re-composing from a <tool_response>.
+        if let answer = emhotobFormatResult(tool.name, result) { return answer }
         let json = Self.jsonString(result)
         messages.append(Turn(role: "tool", content: "<tool_response>\(json)</tool_response>"))
       }
